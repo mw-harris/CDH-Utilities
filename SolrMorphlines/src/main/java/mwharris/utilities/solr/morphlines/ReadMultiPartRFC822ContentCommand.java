@@ -72,6 +72,7 @@ public final class ReadMultiPartRFC822ContentCommand implements CommandBuilder {
             BodyContentHandler ch = new BodyContentHandler();
             Parser parser = new RFC822Parser();
             String mimeType = new Tika().detect(input);
+            
 
             if (!(mimeType.equalsIgnoreCase("message/rfc822"))) {
                 throw new IOException("Not an RFC822 document");
