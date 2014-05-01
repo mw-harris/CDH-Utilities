@@ -8,14 +8,12 @@ import com.typesafe.config.Config;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import org.apache.tika.Tika;
-import org.apache.tika.exception.TikaException;
+import org.apache.tika.detect.DefaultDetector;
+import org.apache.tika.detect.Detector;
 import org.apache.tika.metadata.Metadata;
+import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.ParseContext;
 import org.apache.tika.parser.Parser;
-import org.apache.tika.parser.mail.RFC822Parser;
 import org.apache.tika.sax.BodyContentHandler;
 import org.kitesdk.morphline.api.Command;
 import org.kitesdk.morphline.api.CommandBuilder;
@@ -24,7 +22,6 @@ import org.kitesdk.morphline.api.MorphlineContext;
 import org.kitesdk.morphline.api.Record;
 import org.kitesdk.morphline.base.Fields;
 import org.kitesdk.morphline.stdio.AbstractParser;
-import org.xml.sax.SAXException;
 
 /**
  *
@@ -46,13 +43,14 @@ public final class ReadMultiPartRFC822ContentCommand implements CommandBuilder {
     // Nested classes:
     ///////////////////////////////////////////////////////////////////////////////
     private static final class ReadMultiPartRFC822Content extends AbstractParser {
+
         private final String outputField;
 
         public ReadMultiPartRFC822Content(CommandBuilder builder, Config config, Command parent, Command child, MorphlineContext context) {
             super(builder, config, parent, child, context);
-            this.outputField = getConfigs().getString(config, "outputField","");
+            this.outputField = getConfigs().getString(config, "outputField", "");
             if (outputField.isEmpty()) {
-                throw new MorphlineCompilationException("One output field must be specified",config);
+                throw new MorphlineCompilationException("One output field must be specified", config);
             }
             validateArguments();
         }
@@ -68,27 +66,24 @@ public final class ReadMultiPartRFC822ContentCommand implements CommandBuilder {
             }
             Record outputRecord = template.copy();
 
+            ParseContext context = new ParseContext();
+            Detector detector = new DefaultDetector();
+            Parser parser = new AutoDetectParser(detector);
+            context.set(Parser.class, parser);
+
             Metadata metadata = new Metadata();
-            BodyContentHandler ch = new BodyContentHandler();
-            Parser parser = new RFC822Parser();
-            String mimeType = new Tika().detect(input);
-            
-
-            if (!(mimeType.equalsIgnoreCase("message/rfc822"))) {
-                throw new IOException("Not an RFC822 document");
-                //return false;
-            }
-
-            metadata.set(Metadata.CONTENT_TYPE, mimeType);
+            BodyContentHandler ch;
+            ch = new BodyContentHandler();
             try {
-                parser.parse(input, ch, metadata, new ParseContext());
-            } catch (SAXException ex) {
-                Logger.getLogger(ReadMultiPartRFC822ContentCommand.class.getName()).log(Level.SEVERE, null, ex);
-            } catch (TikaException ex) {
-                Logger.getLogger(ReadMultiPartRFC822ContentCommand.class.getName()).log(Level.SEVERE, null, ex);
+                Parser p = parser;
+                ch = new BodyContentHandler();
+                p.parse(input, ch, metadata, context);
+            } catch (Exception e) {
+                throw new IOException("Parsing failed");
+            } finally {
+                input.close();
+                System.out.flush();
             }
-            input.close();
-
             String replaced = ch.toString().replaceAll("(Sender)(:)(\\s+)([\\w-+]+(?:\\.[\\w-+]+)*@(?:[\\w-]+\\.)+[a-zA-Z]{2,7})([\\n\\r\\s]+)", "");
             replaced = replaced.replaceAll("(Subject)(:).*?([\\n\\r]+)", "");
             replaced = replaced.replaceAll("(Message-Id:).*?([\\n\\r]+)", "");
@@ -102,6 +97,7 @@ public final class ReadMultiPartRFC822ContentCommand implements CommandBuilder {
                 return false;
             }
             return true;
+            // Need to add the ability to traverse documents via Tika.
         }
     }
 }
