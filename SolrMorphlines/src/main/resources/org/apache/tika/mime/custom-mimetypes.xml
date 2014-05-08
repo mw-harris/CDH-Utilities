@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+To change this template, choose Tools | Templates
+and open the template in the editor.
+-->
+<mime-info>
+    <mime-type type="message/rfc822">
+        <magic priority="90">
+            <match value="Content-Type" type="string" offset="0"/>
+            <match value="Received:" type="string" offset="0"/>
+        </magic>
+    </mime-type>
+</mime-info>
